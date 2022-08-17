@@ -115,6 +115,8 @@ async function getTxs() {
   let accountQueryResponse: AccountMeshDataQueryResponse =
     await client.accountMeshDataQuery(accountMeshQuery);
 
+  console.log(publicKey.slice(12));
+
   accountQueryResponse.data.map((d) => {
     let sender = toHexString(d.meshTransaction?.transaction?.sender?.address);
     let receiver = toHexString(
