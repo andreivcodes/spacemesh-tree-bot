@@ -131,9 +131,11 @@ async function getTxs() {
         amount: amount,
       });
       discordChannel.send(
-        `🌳 0x${sender} sent ${
+        `🌳 \`0x${sender}\` sent ${
           parseInt(amount) / 1000000000000
-        } SMH and planted a tree! ❤️ \nSend **1000 SMH** to 0x0a53706e2e888c1d371c54d21f26823a28c3a95b if you also want to plant a tree.`
+        } SMH and planted a tree! ❤️ \n💸 Send **1000 SMH** to **0x${toHexString(
+          publicKey.slice(12)
+        )}** if you also want to plant a tree.`
       );
       console.log(
         `0x${sender} sent ${
