@@ -127,7 +127,7 @@ async function getTxs() {
     if (
       !db.has(toHexString(d.meshTransaction?.transaction?.id?.id)) &&
       parseInt(amount) >= 1000000000000000 &&
-      receiver == "0a53706e2e888c1d371c54d21f26823a28c3a95b"
+      receiver == toHexString(publicKey.slice(12))
     ) {
       db.push(toHexString(d.meshTransaction?.transaction?.id?.id), {
         sender: sender,
