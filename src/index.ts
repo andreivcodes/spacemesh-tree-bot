@@ -26,6 +26,8 @@ const db = new nopedb({
   spaces: 2,
 });
 
+// https://discord.com/api/oauth2/authorize?client_id=1009365106666246144&permissions=2048&scope=bot
+
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
 });
@@ -40,7 +42,7 @@ main();
 function main() {
   client.once("ready", async () => {
     console.log("Ready!");
-    discordChannel = client.channels.cache.get("1009367267097722910");
+    discordChannel = client.channels.cache.get("1009542139128070254");
 
     while (1) {
       await getTxs();
@@ -131,11 +133,11 @@ async function getTxs() {
         amount: amount,
       });
       discordChannel.send(
-        `🌳 \`0x${sender}\` sent ${
+        `🌳 \`0x${sender}\` **sent ${
           parseInt(amount) / 1000000000000
-        } SMH and planted a tree! ❤️ \n💸 Send **1000 SMH** to **0x${toHexString(
+        } SMH and planted a tree!** ❤️ \n💸 If you also want to plant a tree send 1000 SMH to **0x${toHexString(
           publicKey.slice(12)
-        )}** if you also want to plant a tree.`
+        )}** 💸`
       );
       console.log(
         `0x${sender} sent ${
