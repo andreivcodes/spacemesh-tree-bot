@@ -58,7 +58,7 @@ const channel = createChannel(
   ChannelCredentials.createSsl()
 );
 
-const initialMsgSend = false;
+let initialMsgSend = false;
 
 async function getTxs() {
   console.log("getTxs");
@@ -92,13 +92,15 @@ async function getTxs() {
       console.log("ouch", error);
     });
 
-  if (!initialMsgSend)
+  if (!initialMsgSend) {
     console.log(`bot public key: ${toHexString(publicKey.slice(12))}`);
-  discordChannel.send(
-    `🌳 If you want to plant a tree send 1000 SMH to **0x${toHexString(
-      publicKey.slice(12)
-    )}** 💸`
-  );
+    discordChannel.send(
+      `🌳 If you want to plant a tree send 1000 SMH to **0x${toHexString(
+        publicKey.slice(12)
+      )}** 💸`
+    );
+    initialMsgSend = true;
+  }
 
   const client: MeshServiceClient = createClient(
     MeshServiceDefinition,
