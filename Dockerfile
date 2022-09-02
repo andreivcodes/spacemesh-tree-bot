@@ -4,6 +4,7 @@ COPY . ./app
 
 WORKDIR /app
 
-RUN npm i
+RUN rm -rf /node_modules
+RUN yarn
 
 CMD [ "yarn", "start" ]
