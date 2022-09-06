@@ -94,11 +94,11 @@ async function getTxs() {
 
   if (!initialMsgSend) {
     console.log(`bot public key: ${toHexString(publicKey.slice(12))}`);
-    // discordChannel.send(
-    //   `🌳 If you want to plant a tree send 1000 SMH to **0x${toHexString(
-    //     publicKey.slice(12)
-    //   )}** 💸`
-    // );
+    discordChannel.send(
+      `🌳 If you want to plant a tree send 1000 SMH to **0x${toHexString(
+        publicKey.slice(12)
+      )}** 💸`
+    );
     initialMsgSend = true;
   }
 
