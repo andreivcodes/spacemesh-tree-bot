@@ -54,7 +54,7 @@ function main() {
 }
 
 const channel = createChannel(
-  "api-devnet225.spacemesh.io:443",
+  "api-devnet226.spacemesh.io:443",
   ChannelCredentials.createSsl()
 );
 
