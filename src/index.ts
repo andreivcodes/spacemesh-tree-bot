@@ -32,6 +32,10 @@ const db = new nopedb({
 
 // https://discord.com/api/oauth2/authorize?client_id=1009365106666246144&permissions=2048&scope=bot
 
+declare global {
+  function crypto(): string;
+}
+
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
 });
@@ -78,9 +82,6 @@ async function getNetwork() {
     });
 }
 
-declare global {
-  function crypto(): string;
-}
 async function getTxs() {
   const senderPrivateKey = mnemonicToSeedSync(senderSeed);
 
