@@ -17,8 +17,10 @@ import {
   MeshServiceDefinition,
 } from "./proto/gen/spacemesh/v1/mesh";
 import fetch from "node-fetch";
+import { TextEncoder } from "util";
+import crypto from "crypto";
+import { loadWasm } from "./wasm_loader";
 const { Client, GatewayIntentBits } = require("discord.js");
-const fs = require("fs");
 const nopedb = require("nope.db");
 
 require("dotenv").config();
@@ -76,6 +78,9 @@ async function getNetwork() {
     });
 }
 
+declare global {
+  function crypto(): string;
+}
 async function getTxs() {
   const senderPrivateKey = mnemonicToSeedSync(senderSeed);
 
@@ -86,7 +91,6 @@ async function getTxs() {
   let publicKey = new Uint8Array(32);
   let secretKey = new Uint8Array(64);
 
-  const crypto = require("crypto");
   globalThis.crypto = {
     // @ts-ignore
     getRandomValues(b) {
@@ -173,20 +177,6 @@ async function getTxs() {
         } SMH and planted a tree!`
       );
     } else console.log("nothing new");
-  });
-}
-
-function loadWasm(path: string) {
-  const go = new Go();
-  return new Promise((resolve, reject) => {
-    WebAssembly.instantiate(fs.readFileSync(path), go.importObject)
-      .then((result) => {
-        go.run(result.instance);
-        resolve(result.instance);
-      })
-      .catch((error) => {
-        reject(error);
-      });
   });
 }
 
