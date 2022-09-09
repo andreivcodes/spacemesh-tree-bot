@@ -16,9 +16,11 @@ import {
   MeshServiceClient,
   MeshServiceDefinition,
 } from "./proto/gen/spacemesh/v1/mesh";
+import fetch from "node-fetch";
 const { Client, GatewayIntentBits } = require("discord.js");
 const fs = require("fs");
 const nopedb = require("nope.db");
+
 require("dotenv").config();
 const db = new nopedb({
   path: "./data/stored_txs.json",
@@ -37,6 +39,11 @@ declare var Go: any;
 
 const senderSeed: string = process.env.SEEDPHRASE!;
 
+let url = "https://discover.spacemesh.io/networks.json";
+let networkUrl: String;
+let channel: Channel;
+let initialMsgSend = false;
+
 main();
 
 function main() {
@@ -45,7 +52,11 @@ function main() {
     discordChannel = client.channels.cache.get("1009542139128070254");
 
     while (1) {
+      console.log("gettingNetwork");
+      await getNetwork();
+      console.log("gettingTxs");
       await getTxs();
+      console.log("done. sleep...");
       await sleep(10 * 1000);
     }
   });
@@ -53,16 +64,19 @@ function main() {
   client.login(process.env.TOKEN);
 }
 
-const channel = createChannel(
-  "api-devnet226.spacemesh.io:443",
-  ChannelCredentials.createSsl()
-);
-
-let initialMsgSend = false;
+async function getNetwork() {
+  await fetch(url)
+    .then((response) => response.json())
+    .then((res) => {
+      networkUrl = res[0]["grpcAPI"].slice(0, -1).substring(8);
+      channel = createChannel(
+        `${networkUrl}:443`,
+        ChannelCredentials.createSsl()
+      );
+    });
+}
 
 async function getTxs() {
-  console.log("getTxs");
-
   const senderPrivateKey = mnemonicToSeedSync(senderSeed);
 
   const slicedSenderPrivateKey = new Uint8Array(senderPrivateKey.slice(32));
@@ -82,7 +96,7 @@ async function getTxs() {
   require("./wasm_exec");
 
   await loadWasm("./src/ed25519.wasm")
-    .then((wasm) => {
+    .then(() => {
       secretKey =
         // @ts-ignore
         __deriveNewKeyPair(slicedSenderPrivateKey, 0, saltAsUint8Array);
@@ -93,14 +107,16 @@ async function getTxs() {
     });
 
   if (!initialMsgSend) {
-    console.log(`bot public key: ${toHexString(publicKey.slice(12))}`);
-    discordChannel.send(
-      `🌳 If you want to plant a tree send 1000 SMH to **0x${toHexString(
-        publicKey.slice(12)
-      )}** 💸`
-    );
+    // discordChannel.send(
+    //   `🌳 If you want to plant a tree send 1000 SMH to **0x${toHexString(
+    //     publicKey.slice(12)
+    //   )}** 💸`
+    // );
     initialMsgSend = true;
   }
+
+  console.log(`bot public key: 0x${toHexString(publicKey.slice(12))}`);
+  console.log(`connecting to ${networkUrl}:443`);
 
   const client: MeshServiceClient = createClient(
     MeshServiceDefinition,
@@ -126,8 +142,6 @@ async function getTxs() {
 
   let accountQueryResponse: AccountMeshDataQueryResponse =
     await client.accountMeshDataQuery(accountMeshQuery);
-
-  console.log(toHexString(publicKey.slice(12)));
 
   accountQueryResponse.data.map((d) => {
     let sender = toHexString(d.meshTransaction?.transaction?.sender?.address);
@@ -158,7 +172,7 @@ async function getTxs() {
           parseInt(amount) / 1000000000000
         } SMH and planted a tree!`
       );
-    }
+    } else console.log("nothing new");
   });
 }
 
@@ -183,14 +197,6 @@ const toHexString = (bytes: Uint8Array | Buffer | any): string =>
         (str: string, byte: number) => str + byte.toString(16).padStart(2, "0"),
         ""
       );
-
-const fromHexString = (hexString: string) => {
-  const bytes: number[] = [];
-  for (let i = 0; i < hexString.length; i += 2) {
-    bytes.push(parseInt(hexString.slice(i, i + 2), 16));
-  }
-  return Uint8Array.from(bytes);
-};
 
 function sleep(ms: number | undefined) {
   return new Promise((resolve) => setTimeout(resolve, ms));
