@@ -1,58 +1,47 @@
+import fetch from "node-fetch";
 import {
-  createChannel,
-  createClient,
-  ChannelCredentials,
-  Channel,
-} from "nice-grpc";
-import { AccountId, LayerNumber } from "./proto/gen/spacemesh/v1/types";
-import { mnemonicToSeedSync } from "bip39";
-import {
+  AccountId,
   AccountMeshDataFilter,
   AccountMeshDataFlag,
   AccountMeshDataQueryRequest,
   AccountMeshDataQueryResponse,
-} from "./proto/gen/spacemesh/v1/mesh_types";
-import {
+  createClients,
+  derivePublicKey,
+  GlobalStateServiceClient,
+  LayerNumber,
   MeshServiceClient,
-  MeshServiceDefinition,
-} from "./proto/gen/spacemesh/v1/mesh";
-import fetch from "node-fetch";
-import { TextEncoder } from "util";
-import crypto from "crypto";
-import { loadWasm } from "./wasm_loader";
-const { Client, GatewayIntentBits } = require("discord.js");
-const nopedb = require("nope.db");
+  TransactionServiceClient,
+} from "@andreivcodes/spacemeshlib";
+import { Channel, Client, GatewayIntentBits } from "discord.js";
+import { JsonDB, Config } from "node-json-db";
+import { config } from "dotenv";
 
-require("dotenv").config();
-const db = new nopedb({
-  path: "./data/stored_txs.json",
-  seperator: ".",
-  spaces: 2,
-});
+config();
+
+var db = new JsonDB(new Config("./data/stored_txs", true, false, "/"));
 
 // https://discord.com/api/oauth2/authorize?client_id=1009365106666246144&permissions=2048&scope=bot
-
-declare global {
-  function crypto(): string;
-}
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
 });
 let discordChannel: any;
 
-declare var Go: any;
-
-const senderSeed: string = process.env.SEEDPHRASE!;
+const SEED: string = process.env.SEEDPHRASE!;
+let spacemeshNetworkClients: {
+  ""?: any;
+  gsc?: GlobalStateServiceClient<{}>;
+  txc?: TransactionServiceClient<{}>;
+  msc?: MeshServiceClient<{}>;
+};
 
 let url = "https://discover.spacemesh.io/networks.json";
-let networkUrl: String;
-let channel: Channel;
+let networkUrl: string;
 let initialMsgSend = false;
 
-main();
+const main = async () => {
+  await db.push("/timestamp", new Date());
 
-function main() {
   client.once("ready", async () => {
     console.log("Ready!");
     discordChannel = client.channels.cache.get("1009542139128070254");
@@ -68,48 +57,20 @@ function main() {
   });
 
   client.login(process.env.TOKEN);
-}
+};
 
-async function getNetwork() {
+const getNetwork = async () => {
   await fetch(url)
     .then((response) => response.json())
-    .then((res) => {
+    .then((res: any) => {
       networkUrl = res[0]["grpcAPI"].slice(0, -1).substring(8);
-      channel = createChannel(
-        `${networkUrl}:443`,
-        ChannelCredentials.createSsl()
-      );
+
+      spacemeshNetworkClients = createClients(networkUrl, 443, true);
     });
-}
+};
 
-async function getTxs() {
-  const senderPrivateKey = mnemonicToSeedSync(senderSeed);
-
-  const slicedSenderPrivateKey = new Uint8Array(senderPrivateKey.slice(32));
-
-  const enc = new TextEncoder();
-  const saltAsUint8Array = enc.encode("Spacemesh blockmesh");
-  let publicKey = new Uint8Array(32);
-  let secretKey = new Uint8Array(64);
-
-  globalThis.crypto = {
-    // @ts-ignore
-    getRandomValues(b) {
-      crypto.randomFillSync(b);
-    },
-  };
-  require("./wasm_exec");
-
-  await loadWasm("./src/ed25519.wasm")
-    .then(() => {
-      secretKey =
-        // @ts-ignore
-        __deriveNewKeyPair(slicedSenderPrivateKey, 0, saltAsUint8Array);
-      publicKey = secretKey.slice(32);
-    })
-    .catch((error) => {
-      console.log("ouch", error);
-    });
+const getTxs = async () => {
+  const pk = (await derivePublicKey(SEED, 0)) as Uint8Array;
 
   if (!initialMsgSend) {
     // discordChannel.send(
@@ -120,15 +81,12 @@ async function getTxs() {
     initialMsgSend = true;
   }
 
-  console.log(`bot public key: 0x${toHexString(publicKey.slice(12))}`);
+  console.log(`bot public key: 0x${toHexString(pk.slice(12))}`);
   console.log(`connecting to ${networkUrl}:443`);
 
-  const client: MeshServiceClient = createClient(
-    MeshServiceDefinition,
-    channel
-  );
+  const client = spacemeshNetworkClients.msc!;
 
-  const accountQueryId: AccountId = { address: publicKey };
+  const accountQueryId: AccountId = { address: pk };
 
   const accountMeshQueryFilder: AccountMeshDataFilter = {
     accountId: accountQueryId,
@@ -148,7 +106,7 @@ async function getTxs() {
   let accountQueryResponse: AccountMeshDataQueryResponse =
     await client.accountMeshDataQuery(accountMeshQuery);
 
-  accountQueryResponse.data.map((d) => {
+  accountQueryResponse.data.map(async (d) => {
     let sender = toHexString(d.meshTransaction?.transaction?.sender?.address);
     let receiver = toHexString(
       d.meshTransaction?.transaction?.coinTransfer?.receiver?.address
@@ -156,9 +114,11 @@ async function getTxs() {
     let amount = JSON.stringify(d.meshTransaction?.transaction?.amount?.value);
 
     if (
-      !db.has(toHexString(d.meshTransaction?.transaction?.id?.id)) &&
+      !(await db.getData(
+        toHexString(d.meshTransaction?.transaction?.id?.id)
+      )) &&
       parseInt(amount) >= 1000000000000000 &&
-      receiver == toHexString(publicKey.slice(12))
+      receiver == toHexString(pk.slice(12))
     ) {
       db.push(toHexString(d.meshTransaction?.transaction?.id?.id), {
         sender: sender,
@@ -169,7 +129,7 @@ async function getTxs() {
         `🌳 \`0x${sender}\` **sent ${
           parseInt(amount) / 1000000000000
         } SMH and planted a tree!** ❤️ \nIf you also want to plant a tree send 1000 SMH to **0x${toHexString(
-          publicKey.slice(12)
+          pk.slice(12)
         )}** 💸`
       );
       console.log(
@@ -179,7 +139,7 @@ async function getTxs() {
       );
     } else console.log("nothing new");
   });
-}
+};
 
 const toHexString = (bytes: Uint8Array | Buffer | any): string =>
   bytes instanceof Buffer
@@ -189,6 +149,8 @@ const toHexString = (bytes: Uint8Array | Buffer | any): string =>
         ""
       );
 
-function sleep(ms: number | undefined) {
+const sleep = (ms: number | undefined) => {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
+};
+
+main();
