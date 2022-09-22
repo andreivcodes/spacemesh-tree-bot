@@ -6,7 +6,11 @@ import {
   AccountMeshDataQueryRequest,
   AccountMeshDataQueryResponse,
   createClients,
+  createGlobalStateClient,
+  createMeshClient,
+  createTransactionClient,
   derivePublicKey,
+  getAccountBalance,
   GlobalStateServiceClient,
   LayerNumber,
   MeshServiceClient,
@@ -28,12 +32,7 @@ const client = new Client({
 let discordChannel: any;
 
 const SEED: string = process.env.SEEDPHRASE!;
-let spacemeshNetworkClients: {
-  ""?: any;
-  gsc?: GlobalStateServiceClient<{}>;
-  txc?: TransactionServiceClient<{}>;
-  msc?: MeshServiceClient<{}>;
-};
+let spacemeshNetworkClient: MeshServiceClient<{}>;
 
 let url = "https://discover.spacemesh.io/networks.json";
 let networkUrl: string;
@@ -65,7 +64,7 @@ const getNetwork = async () => {
     .then((res: any) => {
       networkUrl = res[0]["grpcAPI"].slice(0, -1).substring(8);
 
-      spacemeshNetworkClients = createClients(networkUrl, 443, true);
+      spacemeshNetworkClient = createMeshClient(networkUrl, 443, true);
     });
 };
 
@@ -84,9 +83,7 @@ const getTxs = async () => {
   console.log(`bot public key: 0x${toHexString(pk.slice(12))}`);
   console.log(`connecting to ${networkUrl}:443`);
 
-  const client = spacemeshNetworkClients.msc!;
-
-  const accountQueryId: AccountId = { address: pk };
+  const accountQueryId: AccountId = { address: pk.slice(12) };
 
   const accountMeshQueryFilder: AccountMeshDataFilter = {
     accountId: accountQueryId,
@@ -98,13 +95,13 @@ const getTxs = async () => {
 
   const accountMeshQuery: AccountMeshDataQueryRequest = {
     filter: accountMeshQueryFilder,
-    maxResults: 0,
+    maxResults: 100,
     offset: 0,
     minLayer: queryLayerNumber,
   };
 
   let accountQueryResponse: AccountMeshDataQueryResponse =
-    await client.accountMeshDataQuery(accountMeshQuery);
+    await spacemeshNetworkClient.accountMeshDataQuery(accountMeshQuery);
 
   accountQueryResponse.data.map(async (d) => {
     let sender = toHexString(d.meshTransaction?.transaction?.sender?.address);
@@ -113,14 +110,23 @@ const getTxs = async () => {
     );
     let amount = JSON.stringify(d.meshTransaction?.transaction?.amount?.value);
 
+    amount = amount.substring(1, amount.length - 1);
+
+    let alreadyStored = true;
+
+    await db
+      .getData("/" + toHexString(d.meshTransaction?.transaction?.id?.id))
+      .catch((e) => {
+        console.log("does not exist");
+        alreadyStored = false;
+      });
+
     if (
-      !(await db.getData(
-        toHexString(d.meshTransaction?.transaction?.id?.id)
-      )) &&
-      parseInt(amount) >= 1000000000000000 &&
+      !alreadyStored &&
+      BigInt(amount) >= BigInt(1000000000000000) &&
       receiver == toHexString(pk.slice(12))
     ) {
-      db.push(toHexString(d.meshTransaction?.transaction?.id?.id), {
+      db.push("/" + toHexString(d.meshTransaction?.transaction?.id?.id), {
         sender: sender,
         receiver: receiver,
         amount: amount,
