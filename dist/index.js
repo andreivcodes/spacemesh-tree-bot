@@ -69,8 +69,6 @@ const getTxs = async () => {
         let receiver = toHexString(d.meshTransaction?.transaction?.coinTransfer?.receiver?.address);
         let amount = JSON.stringify(d.meshTransaction?.transaction?.amount?.value);
         amount = amount.substring(1, amount.length - 1);
-        console.log(BigInt(amount));
-        console.log(BigInt(amount) >= BigInt(1000000000000000));
         let alreadyStored = true;
         await db
             .getData("/" + toHexString(d.meshTransaction?.transaction?.id?.id))
@@ -78,23 +76,17 @@ const getTxs = async () => {
             console.log("does not exist");
             alreadyStored = false;
         });
-        console.log(alreadyStored);
+        console.log(`${sender} : ${amount}`);
         if (!alreadyStored &&
             BigInt(amount) >= BigInt(1000000000000000) &&
             receiver == toHexString(pk.slice(12))) {
-            db.push("/" + toHexString(d.meshTransaction?.transaction?.id?.id), {
+            await discordChannel.send(`🌳 \`0x${sender}\` **sent ${parseInt(amount) / 1000000000000} SMH and planted a tree!** ❤️ \nIf you also want to plant a tree send 1000 SMH to **0x${toHexString(pk.slice(12))}** 💸`);
+            console.log(`0x${sender} sent ${parseInt(amount) / 1000000000000} SMH and planted a tree!`);
+            await db.push("/" + toHexString(d.meshTransaction?.transaction?.id?.id), {
                 sender: sender,
                 receiver: receiver,
                 amount: amount,
             });
-            // discordChannel.send(
-            //   `🌳 \`0x${sender}\` **sent ${
-            //     parseInt(amount) / 1000000000000
-            //   } SMH and planted a tree!** ❤️ \nIf you also want to plant a tree send 1000 SMH to **0x${toHexString(
-            //     pk.slice(12)
-            //   )}** 💸`
-            // );
-            console.log(`0x${sender} sent ${parseInt(amount) / 1000000000000} SMH and planted a tree!`);
         }
         else
             console.log("nothing new");

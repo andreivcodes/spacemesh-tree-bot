@@ -5,18 +5,12 @@ import {
   AccountMeshDataFlag,
   AccountMeshDataQueryRequest,
   AccountMeshDataQueryResponse,
-  createClients,
-  createGlobalStateClient,
   createMeshClient,
-  createTransactionClient,
   derivePublicKey,
-  getAccountBalance,
-  GlobalStateServiceClient,
   LayerNumber,
   MeshServiceClient,
-  TransactionServiceClient,
 } from "@andreivcodes/spacemeshlib";
-import { Channel, Client, GatewayIntentBits } from "discord.js";
+import { Client, GatewayIntentBits } from "discord.js";
 import { JsonDB, Config } from "node-json-db";
 import { config } from "dotenv";
 
@@ -72,11 +66,11 @@ const getTxs = async () => {
   const pk = (await derivePublicKey(SEED, 0)) as Uint8Array;
 
   if (!initialMsgSend) {
-    // discordChannel.send(
-    //   `🌳 If you want to plant a tree send 1000 SMH to **0x${toHexString(
-    //     publicKey.slice(12)
-    //   )}** 💸`
-    // );
+    discordChannel.send(
+      `🌳 If you want to plant a tree send 1000 SMH to **0x${toHexString(
+        pk.slice(12)
+      )}** 💸`
+    );
     initialMsgSend = true;
   }
 
@@ -121,17 +115,14 @@ const getTxs = async () => {
         alreadyStored = false;
       });
 
+    console.log(`${sender} : ${amount}`);
+
     if (
       !alreadyStored &&
       BigInt(amount) >= BigInt(1000000000000000) &&
       receiver == toHexString(pk.slice(12))
     ) {
-      db.push("/" + toHexString(d.meshTransaction?.transaction?.id?.id), {
-        sender: sender,
-        receiver: receiver,
-        amount: amount,
-      });
-      discordChannel.send(
+      await discordChannel.send(
         `🌳 \`0x${sender}\` **sent ${
           parseInt(amount) / 1000000000000
         } SMH and planted a tree!** ❤️ \nIf you also want to plant a tree send 1000 SMH to **0x${toHexString(
@@ -143,6 +134,11 @@ const getTxs = async () => {
           parseInt(amount) / 1000000000000
         } SMH and planted a tree!`
       );
+      await db.push("/" + toHexString(d.meshTransaction?.transaction?.id?.id), {
+        sender: sender,
+        receiver: receiver,
+        amount: amount,
+      });
     } else console.log("nothing new");
   });
 };
