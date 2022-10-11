@@ -66,81 +66,90 @@ const getTxs = async () => {
   const pk = (await derivePublicKey(SEED, 0)) as Uint8Array;
 
   if (!initialMsgSend) {
-    discordChannel.send(
-      `🌳 If you want to plant a tree send 1000 SMH to **0x${toHexString(
-        pk.slice(12)
-      )}** 💸`
-    );
+    // discordChannel.send(
+    //   `🌳 If you want to plant a tree send 1000 SMH to **0x${toHexString(
+    //     pk.slice(12)
+    //   )}** 💸`
+    // );
     initialMsgSend = true;
   }
 
   console.log(`bot public key: 0x${toHexString(pk.slice(12))}`);
   console.log(`connecting to ${networkUrl}:443`);
 
-  const accountQueryId: AccountId = { address: pk.slice(12) };
+  try {
+    const accountQueryId: AccountId = { address: pk.slice(12) };
 
-  const accountMeshQueryFilder: AccountMeshDataFilter = {
-    accountId: accountQueryId,
-    accountMeshDataFlags:
-      AccountMeshDataFlag.ACCOUNT_MESH_DATA_FLAG_TRANSACTIONS,
-  };
+    const accountMeshQueryFilder: AccountMeshDataFilter = {
+      accountId: accountQueryId,
+      accountMeshDataFlags:
+        AccountMeshDataFlag.ACCOUNT_MESH_DATA_FLAG_TRANSACTIONS,
+    };
 
-  const queryLayerNumber: LayerNumber = { number: 0 };
+    const queryLayerNumber: LayerNumber = { number: 0 };
 
-  const accountMeshQuery: AccountMeshDataQueryRequest = {
-    filter: accountMeshQueryFilder,
-    maxResults: 100,
-    offset: 0,
-    minLayer: queryLayerNumber,
-  };
+    const accountMeshQuery: AccountMeshDataQueryRequest = {
+      filter: accountMeshQueryFilder,
+      maxResults: 100,
+      offset: 0,
+      minLayer: queryLayerNumber,
+    };
 
-  let accountQueryResponse: AccountMeshDataQueryResponse =
-    await spacemeshNetworkClient.accountMeshDataQuery(accountMeshQuery);
+    let accountQueryResponse: AccountMeshDataQueryResponse =
+      await spacemeshNetworkClient.accountMeshDataQuery(accountMeshQuery);
 
-  accountQueryResponse.data.map(async (d) => {
-    let sender = toHexString(d.meshTransaction?.transaction?.sender?.address);
-    let receiver = toHexString(
-      d.meshTransaction?.transaction?.coinTransfer?.receiver?.address
-    );
-    let amount = JSON.stringify(d.meshTransaction?.transaction?.amount?.value);
-
-    amount = amount.substring(1, amount.length - 1);
-
-    let alreadyStored = true;
-
-    await db
-      .getData("/" + toHexString(d.meshTransaction?.transaction?.id?.id))
-      .catch((e) => {
-        console.log("does not exist");
-        alreadyStored = false;
-      });
-
-    console.log(`${sender} : ${amount}`);
-
-    if (
-      !alreadyStored &&
-      BigInt(amount) >= BigInt(1000000000000000) &&
-      receiver == toHexString(pk.slice(12))
-    ) {
-      await discordChannel.send(
-        `🌳 \`0x${sender}\` **sent ${
-          parseInt(amount) / 1000000000000
-        } SMH and planted a tree!** ❤️ \nIf you also want to plant a tree send 1000 SMH to **0x${toHexString(
-          pk.slice(12)
-        )}** 💸`
+    accountQueryResponse.data.map(async (d) => {
+      let sender = toHexString(d.meshTransaction?.transaction?.sender?.address);
+      let receiver = toHexString(
+        d.meshTransaction?.transaction?.coinTransfer?.receiver?.address
       );
-      console.log(
-        `0x${sender} sent ${
-          parseInt(amount) / 1000000000000
-        } SMH and planted a tree!`
+      let amount = JSON.stringify(
+        d.meshTransaction?.transaction?.amount?.value
       );
-      await db.push("/" + toHexString(d.meshTransaction?.transaction?.id?.id), {
-        sender: sender,
-        receiver: receiver,
-        amount: amount,
-      });
-    } else console.log("nothing new");
-  });
+
+      amount = amount.substring(1, amount.length - 1);
+
+      let alreadyStored = true;
+
+      await db
+        .getData("/" + toHexString(d.meshTransaction?.transaction?.id?.id))
+        .catch((e) => {
+          console.log("does not exist");
+          alreadyStored = false;
+        });
+
+      console.log(`${sender} : ${amount}`);
+
+      if (
+        !alreadyStored &&
+        BigInt(amount) >= BigInt(1000000000000000) &&
+        receiver == toHexString(pk.slice(12))
+      ) {
+        await discordChannel.send(
+          `🌳 \`0x${sender}\` **sent ${
+            parseInt(amount) / 1000000000000
+          } SMH and planted a tree!** ❤️ \nIf you also want to plant a tree send 1000 SMH to **0x${toHexString(
+            pk.slice(12)
+          )}** 💸`
+        );
+        console.log(
+          `0x${sender} sent ${
+            parseInt(amount) / 1000000000000
+          } SMH and planted a tree!`
+        );
+        await db.push(
+          "/" + toHexString(d.meshTransaction?.transaction?.id?.id),
+          {
+            sender: sender,
+            receiver: receiver,
+            amount: amount,
+          }
+        );
+      } else console.log("nothing new");
+    });
+  } catch (e) {
+    console.log(e);
+  }
 };
 
 const toHexString = (bytes: Uint8Array | Buffer | any): string =>
